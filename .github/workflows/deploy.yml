@@ -1,31 +1,59 @@
-name: Deploy to VM
+name: Direct Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Deploy directly to VM
+        uses: appleboy/ssh-action@master
+        with:
+          host: 20.62.249.125
+          username: azureuser
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Create directory structure
+            mkdir -p ~/simple-api
+            
+            # Create app.py file
+            cat > ~/simple-api/app.py << 'EOL'
+            from flask import Flask, jsonify
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts
+            app = Flask(__name__)
 
-      - name: Create remote app directory
-        run: ssh azureuser@20.62.249.125 "mkdir -p /home/azureuser/simple-api"
+            @app.route('/sayHello', methods=['GET'])
+            def say_hello():
+                return jsonify({"message": "Hello User."})
 
-      - name: Copy application files to VM (excluding .git)
-        run: |
-          rsync -avz --delete --exclude='.git/' --exclude='.github/' --exclude='venv/' ./ azureuser@20.62.249.125:/home/azureuser/simple-api/
-
-      - name: Execute deployment script on VM
-        run: ssh azureuser@20.62.249.125 "chmod +x /home/azureuser/simple-api/deploy.sh && /home/azureuser/simple-api/deploy.sh"
+            if __name__ == '__main__':
+                app.run(host='0.0.0.0', port=80, debug=False)
+            EOL
+            
+            # Create requirements.txt file
+            cat > ~/simple-api/requirements.txt << 'EOL'
+            flask==2.0.1
+            werkzeug==2.0.3
+            gunicorn==20.1.0
+            EOL
+            
+            # Setup virtual environment
+            cd ~/simple-api
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+            
+            # Install dependencies
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Restart the application
+            sudo pkill -f "python3 app.py" || true
+            sudo nohup $(which python3) app.py > app.log 2>&1 &
+            
+            # Verify deployment
+            echo "API running on port 80"
+            sleep 3
+            curl -s http://localhost/sayHello 
