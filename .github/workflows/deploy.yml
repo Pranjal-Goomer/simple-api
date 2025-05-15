@@ -1,4 +1,4 @@
-name: Deploy API
+name: Deploy Test
 
 on:
   push:
@@ -16,72 +16,29 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Test SSH Connection
+      - name: Debug SSH
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -v azureuser@20.62.249.125 "echo 'SSH connection successful'"
-
-      - name: Create Directory
-        if: success()
-        run: |
-          ssh azureuser@20.62.249.125 "mkdir -p ~/simple-api"
-          echo "Directory created"
-
-      - name: Copy App File
-        if: success()
-        run: |
-          scp -v app.py azureuser@20.62.249.125:~/simple-api/
-          echo "App file copied"
-
-      - name: Copy Requirements File
-        if: success()
-        run: |
-          scp -v requirements.txt azureuser@20.62.249.125:~/simple-api/
-          echo "Requirements file copied"
-
-      - name: Debug info
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Files to deploy:"
-          ls -la
           echo "SSH agent status:"
           ssh-add -l
-          echo "User info:"
-          whoami
+          echo "SSH directory contents:"
+          ls -la ~/.ssh || mkdir -p ~/.ssh
 
-      - name: Add VM host key
+      - name: Add host key
         run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts
-          echo "Added host key"
+          ssh-keyscan -v -H 20.62.249.125 >> ~/.ssh/known_hosts
+          echo "Host key added"
+          cat ~/.ssh/known_hosts
 
-      - name: Test SSH connection
+      - name: Simple SSH test
         run: |
-          ssh -o StrictHostKeyChecking=no -o BatchMode=yes azureuser@20.62.249.125 echo "SSH connection successful"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -v azureuser@20.62.249.125 "echo 'Connection test'"
 
-      - name: Clean up remote directory
+      - name: Create directory
+        if: success()
         run: |
-          ssh azureuser@20.62.249.125 'sudo rm -rf ~/simple-api && mkdir -p ~/simple-api'
-          echo "Directory cleared"
+          ssh -v azureuser@20.62.249.125 "mkdir -p ~/simple-api-test"
 
-      - name: Install dependencies
+      - name: Copy single file
+        if: success()
         run: |
-          ssh azureuser@20.62.249.125 'cd ~/simple-api && sudo apt-get update && sudo apt-get install -y python3-pip'
-          echo "Dependencies installed"
-
-      - name: Install Python packages
-        run: |
-          ssh azureuser@20.62.249.125 'cd ~/simple-api && sudo pip3 install -r requirements.txt'
-          echo "Python packages installed"
-
-      - name: Run application
-        run: |
-          ssh azureuser@20.62.249.125 'cd ~/simple-api && sudo pkill -f "python3 app.py" || true && sudo nohup python3 app.py > app.log 2>&1 &'
-          echo "Application started"
-
-      - name: Verify deployment
-        run: |
-          sleep 10
-          ssh azureuser@20.62.249.125 'curl -s http://localhost/sayHello || echo "API not responding on port 80"' 
+          scp -v app.py azureuser@20.62.249.125:~/simple-api-test/ 
