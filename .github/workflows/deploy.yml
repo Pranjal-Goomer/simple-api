@@ -1,4 +1,7 @@
-name: Direct Deploy
+# DISABLED WORKFLOW - See direct_deploy.yml instead
+# This file is no longer being used
+
+name: Deploy API
 
 on:
   push:
@@ -8,7 +11,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy directly to VM
+      - name: Deploy to VM
         uses: appleboy/ssh-action@master
         with:
           host: 20.62.249.125
