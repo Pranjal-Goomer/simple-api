@@ -1,64 +1,32 @@
-# Disabled old workflow
-# This file has been replaced by simple_deploy.yml 
-
-name: Deploy API
+name: Deploy to VM
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Add SSH key
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 400 ~/.ssh/id_rsa
+          ssh-keyscan 20.62.249.125 >> ~/.ssh/known_hosts
 
       - name: Deploy to VM
-        uses: appleboy/ssh-action@master
-        with:
-          host: 20.62.249.125
-          username: azureuser
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            mkdir -p ~/simple-api
-            echo "Directory created"
-      
-      - name: Copy files
-        uses: appleboy/scp-action@master
-        with:
-          host: 20.62.249.125
-          username: azureuser
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "app.py,requirements.txt"
-          target: "~/simple-api"
-      
-      - name: Run app
-        uses: appleboy/ssh-action@master
-        with:
-          host: 20.62.249.125
-          username: azureuser
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd ~/simple-api
-            # Install required system packages
-            sudo apt-get update
-            sudo apt-get install -y python3-pip python3-venv
-            
-            # Create and activate virtual environment
-            python3 -m venv venv
-            source venv/bin/activate
-            
-            # Install requirements in the virtual environment
-            pip install -r requirements.txt
-            
-            # Stop any running instances
-            sudo pkill -f "python3 app.py" || true
-            
-            # Run the application with sudo (needed for port 80)
-            sudo nohup $(which python3) app.py > app.log 2>&1 &
-            
-            # Verify the app is running
-            echo "Waiting for app to start..."
-            sleep 5
-            curl -s http://localhost/sayHello || echo "API not responding on port 80" 
+        run: ssh azureuser@20.62.249.125 'bash -s' < deploy.sh
