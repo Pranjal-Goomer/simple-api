@@ -31,7 +31,22 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/simple-api
+            
+            # Check if venv exists, if not create it
+            if [ ! -d "venv" ]; then
+              echo "Creating new virtual environment..."
+              python3 -m venv venv
+            fi
+            
+            # Ensure pip is installed in the venv
             source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Kill any existing instances and start the application
             sudo pkill -f "python3 app.py" || true
             sudo nohup $(which python3) app.py > app.log 2>&1 &
-            echo "API running on port 80" 
+            
+            echo "API running on port 80"
+            echo "Testing API..."
+            sleep 3
+            curl -s http://localhost/sayHello 
