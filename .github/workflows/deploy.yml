@@ -3,7 +3,7 @@ name: Deploy to VM
 on:
   push:
     branches:
-      - main # Or your default branch
+      - main
 
 jobs:
   deploy:
@@ -13,33 +13,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # No local Python setup or dependency installation needed on the runner
-      # as the deploy.sh script handles this on the VM.
-
-      - name: Set up SSH
+      - name: Setup SSH
         run: |
-          mkdir -p ~/.ssh/
+          mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts # Replace with your VM IP
+          ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts
 
-      - name: Create remote directory
-        run: ssh azureuser@20.62.249.125 "mkdir -p /home/azureuser/simple-api" # Replace user@host and path
+      - name: Create remote app directory
+        run: ssh azureuser@20.62.249.125 "mkdir -p /home/azureuser/simple-api"
 
-      - name: Copy application files to VM
+      - name: Copy application files to VM (excluding .git)
         run: |
-          # Using rsync is generally more efficient and flexible
-          # Exclude .git directory and other unnecessary files
           rsync -avz --delete --exclude='.git/' --exclude='.github/' --exclude='venv/' ./ azureuser@20.62.249.125:/home/azureuser/simple-api/
-          # The --delete option ensures that files deleted from the repo are also deleted from the server.
-          # If you prefer scp and want to exclude .git:
-          # Create a temporary directory with files to copy
-          # mkdir deploy_files
-          # cp -R !(venv|.git*|.github) deploy_files/  # This is bash globbing, may need adjustment or find
-          # scp -r deploy_files/* azureuser@20.62.249.125:/home/azureuser/simple-api/
-          # rm -rf deploy_files
 
-      - name: Execute deployment script on VM
-        run: |
-          ssh azureuser@20.62.249.125 "chmod +x /home/azureuser/simple-api/deploy.sh && /home/azureuser/simple-api/deploy.sh"
-
+      - name: Run deployment script on VM
+        run: ssh azureuser@20.62.249.125 "chmod +x /home/azureuser/simple-api/deploy.sh && /home/azureuser/simple-api/deploy.sh"
