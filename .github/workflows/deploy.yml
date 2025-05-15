@@ -30,7 +30,17 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts
-          scp -r . azureuser@20.62.249.125:~/simple-api
+          
+          # First remove the existing directory on the VM
+          ssh azureuser@20.62.249.125 'sudo rm -rf ~/simple-api'
+          
+          # Create a new directory
+          ssh azureuser@20.62.249.125 'mkdir -p ~/simple-api'
+          
+          # Copy relevant files, excluding .git directory
+          tar --exclude='.git' -czf - . | ssh azureuser@20.62.249.125 'tar -xzf - -C ~/simple-api'
+          
+          # Install dependencies and run the app
           ssh azureuser@20.62.249.125 'cd ~/simple-api && \
             sudo apt-get update && \
             sudo apt-get install -y python3-pip && \
