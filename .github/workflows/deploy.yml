@@ -11,42 +11,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Set up SSH
+      - name: Setup SSH
         uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Deploy to VM
         run: |
+          # Add VM host key
           mkdir -p ~/.ssh
           ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts
           
-          # First remove the existing directory on the VM
-          ssh azureuser@20.62.249.125 'sudo rm -rf ~/simple-api'
+          # Clean up and create directory
+          ssh azureuser@20.62.249.125 'sudo rm -rf ~/simple-api && mkdir -p ~/simple-api'
           
-          # Create a new directory
-          ssh azureuser@20.62.249.125 'mkdir -p ~/simple-api'
+          # Copy app files (without .git)
+          scp app.py requirements.txt azureuser@20.62.249.125:~/simple-api/
           
-          # Copy relevant files, excluding .git directory
-          tar --exclude='.git' -czf - . | ssh azureuser@20.62.249.125 'tar -xzf - -C ~/simple-api'
-          
-          # Install dependencies and run the app
+          # Setup and run application
           ssh azureuser@20.62.249.125 'cd ~/simple-api && \
             sudo apt-get update && \
             sudo apt-get install -y python3-pip && \
             sudo pip3 install -r requirements.txt && \
             sudo pkill -f "python3 app.py" || true && \
-            sudo nohup python3 app.py > app.log 2>&1 &' && \
-          echo "Waiting for 5 seconds to let the app start..." && \
-          sleep 5 && \
-          echo "Application deployment completed. API should be accessible at http://20.62.249.125/sayHello" 
+            sudo nohup python3 app.py > app.log 2>&1 &'
+          
+          echo "Deployment completed. App should be running on port 80."
+          
+          # Verify deployment after a brief wait
+          sleep 10
+          ssh azureuser@20.62.249.125 'curl -s http://localhost/sayHello || echo "API not responding on port 80"' 
