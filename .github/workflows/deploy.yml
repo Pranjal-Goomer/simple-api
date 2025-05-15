@@ -41,8 +41,24 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/simple-api
+            # Install required system packages
             sudo apt-get update
-            sudo apt-get install -y python3-pip
-            sudo pip3 install -r requirements.txt
+            sudo apt-get install -y python3-pip python3-venv
+            
+            # Create and activate virtual environment
+            python3 -m venv venv
+            source venv/bin/activate
+            
+            # Install requirements in the virtual environment
+            pip install -r requirements.txt
+            
+            # Stop any running instances
             sudo pkill -f "python3 app.py" || true
-            sudo nohup python3 app.py > app.log 2>&1 & 
+            
+            # Run the application with sudo (needed for port 80)
+            sudo nohup $(which python3) app.py > app.log 2>&1 &
+            
+            # Verify the app is running
+            echo "Waiting for app to start..."
+            sleep 5
+            curl -s http://localhost/sayHello || echo "API not responding on port 80" 
