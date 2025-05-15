@@ -31,4 +31,12 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts
           scp -r . azureuser@20.62.249.125:~/simple-api
-          ssh azureuser@20.62.249.125 'cd ~/simple-api && sudo pip3 install -r requirements.txt && sudo nohup python3 app.py > app.log 2>&1 &' 
+          ssh azureuser@20.62.249.125 'cd ~/simple-api && \
+            sudo apt-get update && \
+            sudo apt-get install -y python3-pip && \
+            sudo pip3 install -r requirements.txt && \
+            sudo pkill -f "python3 app.py" || true && \
+            sudo nohup python3 app.py > app.log 2>&1 &' && \
+          echo "Waiting for 5 seconds to let the app start..." && \
+          sleep 5 && \
+          echo "Application deployment completed. API should be accessible at http://20.62.249.125/sayHello" 
