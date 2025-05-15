@@ -1,64 +1,45 @@
-# Disabled old workflow
-# This file has been replaced by simple_deploy.yml 
-
-name: Deploy API
+name: Deploy to VM
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main # Or your default branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Setup remote directory
-        uses: appleboy/ssh-action@master
-        with:
-          host: 20.62.249.125
-          username: azureuser
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            if [ -d "~/simple-api/.git" ]; then
-              rm -rf ~/simple-api/.git
-            fi
+      # No local Python setup or dependency installation needed on the runner
+      # as the deploy.sh script handles this on the VM.
 
-      - name: Copy files
-        uses: appleboy/scp-action@master
-        with:
-          host: 20.62.249.125
-          username: azureuser
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "app.py,requirements.txt"
-          target: "~/simple-api"
-          overwrite: true
-      
-      - name: Run application
-        uses: appleboy/ssh-action@master
-        with:
-          host: 20.62.249.125
-          username: azureuser
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd ~/simple-api
-            
-            # Check if venv exists, if not create it
-            if [ ! -d "venv" ]; then
-              echo "Creating new virtual environment..."
-              python3 -m venv venv
-            fi
-            
-            # Ensure pip is installed in the venv
-            source venv/bin/activate
-            pip install -r requirements.txt
-            
-            # Kill any existing instances and start the application
-            sudo pkill -f "python3 app.py" || true
-            sudo nohup $(which python3) app.py > app.log 2>&1 &
-            
-            echo "API running on port 80"
-            echo "Testing API..."
-            sleep 3
-            curl -s http://localhost/sayHello 
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H 20.62.249.125 >> ~/.ssh/known_hosts # Replace with your VM IP
+
+      - name: Create remote directory
+        run: ssh azureuser@20.62.249.125 "mkdir -p /home/azureuser/simple-api" # Replace user@host and path
+
+      - name: Copy application files to VM
+        run: |
+          # Using rsync is generally more efficient and flexible
+          # Exclude .git directory and other unnecessary files
+          rsync -avz --delete --exclude='.git/' --exclude='.github/' --exclude='venv/' ./ azureuser@20.62.249.125:/home/azureuser/simple-api/
+          # The --delete option ensures that files deleted from the repo are also deleted from the server.
+          # If you prefer scp and want to exclude .git:
+          # Create a temporary directory with files to copy
+          # mkdir deploy_files
+          # cp -R !(venv|.git*|.github) deploy_files/  # This is bash globbing, may need adjustment or find
+          # scp -r deploy_files/* azureuser@20.62.249.125:/home/azureuser/simple-api/
+          # rm -rf deploy_files
+
+      - name: Execute deployment script on VM
+        run: |
+          ssh azureuser@20.62.249.125 "chmod +x /home/azureuser/simple-api/deploy.sh && /home/azureuser/simple-api/deploy.sh"
+
