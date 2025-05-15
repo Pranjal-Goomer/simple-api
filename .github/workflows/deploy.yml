@@ -27,5 +27,5 @@ jobs:
         run: |
           rsync -avz --delete --exclude='.git/' --exclude='.github/' --exclude='venv/' ./ azureuser@20.62.249.125:/home/azureuser/simple-api/
 
-      - name: Run deployment script on VM
+      - name: Execute deployment script on VM
         run: ssh azureuser@20.62.249.125 "chmod +x /home/azureuser/simple-api/deploy.sh && /home/azureuser/simple-api/deploy.sh"
