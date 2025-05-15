@@ -4,13 +4,11 @@ set -e # Exit immediately if a command exits with a non-zero status.
 APP_DIR="/home/azureuser/simple-api" # Your application directory on the VM
 VENV_DIR="${APP_DIR}/venv"
 
-# Ensure the application directory exists
+# Ensure the application directory exists and navigate into it
 mkdir -p "${APP_DIR}"
 cd "${APP_DIR}"
 
 # Stop any existing process on port 80
-# This requires 'azureuser' to have passwordless sudo privileges for fuser,
-# or fuser needs to be callable without sudo if it doesn't require root.
 echo "Attempting to stop any process on port 80..."
 if command -v fuser &> /dev/null && [ -x "$(command -v fuser)" ]; then
     sudo fuser -k 80/tcp || echo "Port 80 was not in use, or fuser command failed to stop a process."
@@ -32,17 +30,16 @@ fi
 # Create a Python virtual environment if it doesn't already exist
 if [ ! -d "${VENV_DIR}" ]; then
   echo "Creating Python virtual environment in ${VENV_DIR}..."
+  # Ensure this command is run by the 'azureuser' (which it should be via GitHub Actions SSH)
+  # so that 'azureuser' owns the venv.
   python3 -m venv "${VENV_DIR}"
 fi
 
-# Activate the virtual environment and install dependencies from requirements.txt
-echo "Activating virtual environment and installing dependencies..."
-source "${VENV_DIR}/bin/activate"
-# Ensure pip is up-to-date within the venv
-"${VENV_DIR}/bin/pip" install --upgrade pip
-# Install requirements
-"${VENV_DIR}/bin/pip" install -r requirements.txt
-deactivate # Deactivate after installing, nohup will use the venv python
+# Install dependencies using pip from the virtual environment
+echo "Installing dependencies from requirements.txt into the virtual environment..."
+# Use the Python interpreter from the venv to run pip module, ensuring correct context
+"${VENV_DIR}/bin/python" -m pip install --upgrade pip
+"${VENV_DIR}/bin/python" -m pip install -r requirements.txt
 
 # Start the application using python from the virtual environment
 # Output logs to app.log for debugging
