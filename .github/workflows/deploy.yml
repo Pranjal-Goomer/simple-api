@@ -1,11 +1,10 @@
-# DISABLED WORKFLOW - See direct_deploy.yml instead
-# This file is no longer being used
-
 name: Deploy API
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
+    # This allows manual triggering from GitHub Actions tab
 
 jobs:
   deploy:
@@ -42,21 +41,55 @@ jobs:
             gunicorn==20.1.0
             EOL
             
+            # Display Python version
+            echo "Python version:"
+            python3 --version
+            
             # Setup virtual environment
             cd ~/simple-api
             if [ ! -d "venv" ]; then
+              echo "Creating new virtual environment..."
               python3 -m venv venv
+            else
+              echo "Using existing virtual environment..."
             fi
             
-            # Install dependencies
+            # First activate the virtual environment
+            echo "Activating virtual environment..."
             source venv/bin/activate
+            
+            # Verify Python path
+            echo "Python path: $(which python)"
+            
+            # Then install dependencies in the activated environment
+            echo "Installing dependencies..."
             pip install -r requirements.txt
             
-            # Restart the application
-            sudo pkill -f "python3 app.py" || true
-            sudo nohup $(which python3) app.py > app.log 2>&1 &
+            # Check if port 80 is in use
+            echo "Checking if port 80 is in use:"
+            sudo netstat -tulpn | grep :80 || echo "Port 80 is free"
+            
+            # Kill any existing application
+            echo "Stopping any existing application..."
+            sudo pkill -f "python3 app.py" || echo "No existing app running"
+            
+            # Run application with full path and verbose output
+            echo "Starting application..."
+            sudo nohup $(which python) app.py > app.log 2>&1 &
+            echo "App started with PID: $!"
+            
+            # Wait for app to start
+            echo "Waiting for app to start..."
+            sleep 5
+            
+            # Check if app is running
+            echo "Checking running Python processes:"
+            ps aux | grep python
+            
+            # Verify app log output
+            echo "Checking app log:"
+            tail -n 20 app.log
             
             # Verify deployment
-            echo "API running on port 80"
-            sleep 3
-            curl -s http://localhost/sayHello 
+            echo "Testing API response:"
+            curl -v http://localhost/sayHello 
