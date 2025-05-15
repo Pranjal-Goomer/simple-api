@@ -1,4 +1,7 @@
-name: Simple Deploy
+# Disabled old workflow
+# This file has been replaced by simple_deploy.yml 
+
+name: Deploy API
 
 on:
   push:
@@ -11,18 +14,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Deploy via SSH
+      - name: Deploy to VM
         uses: appleboy/ssh-action@master
         with:
           host: 20.62.249.125
           username: azureuser
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "Creating directory..."
             mkdir -p ~/simple-api
             echo "Directory created"
       
-      - name: Upload files
+      - name: Copy files
         uses: appleboy/scp-action@master
         with:
           host: 20.62.249.125
@@ -31,25 +33,16 @@ jobs:
           source: "app.py,requirements.txt"
           target: "~/simple-api"
       
-      - name: Install and run
+      - name: Run app
         uses: appleboy/ssh-action@master
         with:
           host: 20.62.249.125
           username: azureuser
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "Installing dependencies..."
             cd ~/simple-api
             sudo apt-get update
             sudo apt-get install -y python3-pip
             sudo pip3 install -r requirements.txt
-            echo "Dependencies installed"
-            
-            echo "Starting application..."
             sudo pkill -f "python3 app.py" || true
-            sudo nohup python3 app.py > app.log 2>&1 &
-            echo "Application started"
-            
-            echo "Testing API..."
-            sleep 5
-            curl -s http://localhost/sayHello || echo "API not responding on port 80" 
+            sudo nohup python3 app.py > app.log 2>&1 & 
