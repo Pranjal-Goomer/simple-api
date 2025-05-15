@@ -1,4 +1,4 @@
-name: Deploy Test
+name: Simple Deploy
 
 on:
   push:
@@ -8,37 +8,48 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.5.4
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Debug SSH
-        run: |
-          echo "SSH agent status:"
-          ssh-add -l
-          echo "SSH directory contents:"
-          ls -la ~/.ssh || mkdir -p ~/.ssh
-
-      - name: Add host key
-        run: |
-          ssh-keyscan -v -H 20.62.249.125 >> ~/.ssh/known_hosts
-          echo "Host key added"
-          cat ~/.ssh/known_hosts
-
-      - name: Simple SSH test
-        run: |
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=no -v azureuser@20.62.249.125 "echo 'Connection test'"
-
-      - name: Create directory
-        if: success()
-        run: |
-          ssh -v azureuser@20.62.249.125 "mkdir -p ~/simple-api-test"
-
-      - name: Copy single file
-        if: success()
-        run: |
-          scp -v app.py azureuser@20.62.249.125:~/simple-api-test/ 
+          host: 20.62.249.125
+          username: azureuser
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "Creating directory..."
+            mkdir -p ~/simple-api
+            echo "Directory created"
+      
+      - name: Upload files
+        uses: appleboy/scp-action@master
+        with:
+          host: 20.62.249.125
+          username: azureuser
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "app.py,requirements.txt"
+          target: "~/simple-api"
+      
+      - name: Install and run
+        uses: appleboy/ssh-action@master
+        with:
+          host: 20.62.249.125
+          username: azureuser
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "Installing dependencies..."
+            cd ~/simple-api
+            sudo apt-get update
+            sudo apt-get install -y python3-pip
+            sudo pip3 install -r requirements.txt
+            echo "Dependencies installed"
+            
+            echo "Starting application..."
+            sudo pkill -f "python3 app.py" || true
+            sudo nohup python3 app.py > app.log 2>&1 &
+            echo "Application started"
+            
+            echo "Testing API..."
+            sleep 5
+            curl -s http://localhost/sayHello || echo "API not responding on port 80" 
